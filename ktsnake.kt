@@ -19,11 +19,17 @@ enum class GridElementTypes(val color: ColorTuple){
 }
 
 class GameGrid(rows: Int, cols: Int, side_size_px: Int) {
-    val rows: Int = rows
-    val cols: Int = cols
-    val side_size_px: Int = side_size_px
-    val activeGridElements = mutableMapOf<Grid, GridElement>()
+    private val rows: Int
+    private val cols: Int
+    private val sidesizepx: Int
+    private val activeGridElements: MutableMap<Grid, GridElement>
 
+    init {
+        this.rows = rows
+        this.cols = cols
+        this.sidesizepx = side_size_px
+        activeGridElements = mutableMapOf<Grid, GridElement>()
+    }
 
     fun getGridElement(grid_index: Grid): GridElement? {
         when (activeGridElements.containsKey(grid_index)) {
@@ -36,10 +42,10 @@ class GameGrid(rows: Int, cols: Int, side_size_px: Int) {
         if (activeGridElements.containsKey(grid_index)) {
             return false
         } else {
-            val xcoord: Int = side_size_px * grid_index.row + side_size_px
-            val ycoord: Int = side_size_px * grid_index.col + side_size_px
+            val xcoord: Int = sidesizepx * grid_index.row + sidesizepx
+            val ycoord: Int = sidesizepx * grid_index.col + sidesizepx
             val origin_coords = Point(xcoord, ycoord)
-            val new_grid_element: GridElement = GridElement(element_type.color, origin_coords, side_size_px)
+            val new_grid_element: GridElement = GridElement(element_type.color, origin_coords, sidesizepx)
             activeGridElements[grid_index] =  new_grid_element
             return true
         }
@@ -66,16 +72,22 @@ class GameGrid(rows: Int, cols: Int, side_size_px: Int) {
 }
 
 class GridElement (type: ColorTuple, origin_coords: Point, size_px: Int) {
-    val color: ColorTuple = type
-    val origin_coords: Point = origin_coords
-    val size_px: Int = size_px
+    private val color: ColorTuple
+    private val origincoords: Point
+    private val sizepx: Int
+
+    init {
+        this.color = type
+        this.origincoords = origin_coords
+        this.sizepx = size_px
+    }
 
     fun draw() {
         // Figure out our vertices
-        val br: Point = origin_coords
-        val tr: Point = Point(origin_coords.x, origin_coords.y - size_px)
-        val tl: Point = Point(origin_coords.x - size_px, origin_coords.y - size_px)
-        val bl: Point = Point(origin_coords.x - size_px, origin_coords.y)
+        val br: Point = origincoords
+        val tr: Point = Point(origincoords.x, origincoords.y - sizepx)
+        val tl: Point = Point(origincoords.x - sizepx, origincoords.y - sizepx)
+        val bl: Point = Point(origincoords.x - sizepx, origincoords.y)
         glColor3f(color.r, color.g, color.b)
         glBegin(GL_QUADS)
         glVertex2i(br.x, br.y)
@@ -88,13 +100,13 @@ class GridElement (type: ColorTuple, origin_coords: Point, size_px: Int) {
 
 
 object SnakeGame {
-    val WINDOW_SIZE_WIDTH: Int = 500
-    val WINDOW_SIZE_HEIGHT: Int = 500
-    val side_size_px: Int = 25
-    val rows: Int = floor(WINDOW_SIZE_WIDTH.toFloat()/side_size_px.toFloat()).toInt()
-    val cols = floor(WINDOW_SIZE_HEIGHT.toFloat()/side_size_px.toFloat()).toInt()
-    var gameGrid: GameGrid = GameGrid(rows, cols, side_size_px)
-    var window: Long = NULL
+    private const val WINDOW_SIZE_WIDTH: Int = 500
+    private const val WINDOW_SIZE_HEIGHT: Int = 500
+    private const val side_size_px: Int = 25
+    private val rows: Int = floor(WINDOW_SIZE_WIDTH.toFloat()/side_size_px.toFloat()).toInt()
+    private val cols = floor(WINDOW_SIZE_HEIGHT.toFloat()/side_size_px.toFloat()).toInt()
+    private val gameGrid: GameGrid = GameGrid(rows, cols, side_size_px)
+    private var window: Long = NULL
 
     fun startGame() {
         //initialize GLFW
@@ -112,7 +124,7 @@ object SnakeGame {
         }
     }
 
-    fun init(windowSizeW: Int, windowSizeH: Int) {
+    private fun init(windowSizeW: Int, windowSizeH: Int) {
         if ( !glfwInit() ) {
             throw Exception("Failed to initialize GLFW.")
         }
