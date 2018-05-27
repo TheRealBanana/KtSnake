@@ -45,7 +45,7 @@ enum class Directions(val dir: String) {
 
 class GameGrid(snake: Snake, rows: Int, cols: Int, side_size_px: Int) {
     val MAX_OBJS: Int = 10
-    val snake: Snake
+    private val snake: Snake
     private val rows: Int
     private val cols: Int
     private val sidesizepx: Int
@@ -108,11 +108,11 @@ class GameGrid(snake: Snake, rows: Int, cols: Int, side_size_px: Int) {
         val nextmove: Grid = snake.getMove()
 
         //Check if we hit the wall
-        if (!(0 <= nextmove.row && nextmove.row < rows)){
+        if (!(nextmove.row >= 0 && nextmove.row < rows)){
             snake.alive = false
             println("Hit a wall, we ded fam X(")
             return false
-        } else if (!(0 <= nextmove.col && nextmove.row < cols)){
+        } else if (!(nextmove.col >= 0 && nextmove.col < cols)){
             snake.alive = false
             println("Hit a wall, we ded fam X(")
             return false
@@ -183,7 +183,7 @@ class GridElement (type: ColorTuple, origin_coords: Point, size_px: Int) {
 class Snake(start_grid: Grid, start_direction: Directions) {
     var alive: Boolean = true
     var currentgrid: Grid
-    var direction: Directions
+    private var direction: Directions
     var length: Int = 5 //initial snake size
     val snakegrids: MutableList<Grid> = mutableListOf()
 
@@ -216,15 +216,16 @@ class Snake(start_grid: Grid, start_direction: Directions) {
             }
         }
     }
-    fun glfwKeypressCallback(key: Int) {
-        when (key) {
-            GLFW_KEY_UP -> changeDirection(Directions.UP)
-            GLFW_KEY_DOWN -> changeDirection(Directions.DOWN)
-            GLFW_KEY_LEFT -> changeDirection(Directions.LEFT)
-            GLFW_KEY_RIGHT -> changeDirection(Directions.RIGHT)
+    fun glfwKeypressCallback(window: Long, key: Int, scancode: Int, action: Int, mods: Int) {
+        if (action == GLFW_PRESS) {
+            when (key) {
+                GLFW_KEY_UP -> changeDirection(Directions.UP)
+                GLFW_KEY_DOWN -> changeDirection(Directions.DOWN)
+                GLFW_KEY_LEFT -> changeDirection(Directions.LEFT)
+                GLFW_KEY_RIGHT -> changeDirection(Directions.RIGHT)
+            }
         }
     }
-
 }
 
 object SnakeGame {
@@ -237,7 +238,6 @@ object SnakeGame {
     private val snake: Snake = Snake(Grid(1,1), Directions.RIGHT)
     private val gameGrid: GameGrid = GameGrid(snake, rows, cols, side_size_px)
     private var window: Long = NULL
-    private var keyCallback: GLFWKeyCallback? = null
 
     fun startGame() {
         //initialize GLFW
@@ -286,7 +286,19 @@ object SnakeGame {
         }
         glfwMakeContextCurrent(window)
         //Key callbacks
-        //glfwSetKeyCallback(window, snake.glfwKeypressCallback)
+        /* So when I tried this first time around I got a lot of errors about expecting a function of
+        a specific type GLFWKeyCallback. Coming from python, I had no concept of function types so I
+        just copied the example code and it worked.
+
+        My error was passing the callback function with a dot operator instead of the double colon reference operator.
+        The function type is basically the function signature without the function name.
+        (arg1type, arg2type, ..) -> functionReturnType
+        That above would be considered by kotlin (without the ellipses ofc) to be a valid type for a function argument.
+        */
+        glfwSetKeyCallback(window, snake::glfwKeypressCallback)
+        /* The below is how the glfw docs said to do key callbacks but I like my way better.
+        I just really dont like lambda functions, I never needed them up to now.
+
         keyCallback = glfwSetKeyCallback(window, object : GLFWKeyCallback() {
             override fun invoke(window: kotlin.Long,
                                 key: kotlin.Int,
@@ -297,7 +309,7 @@ object SnakeGame {
                 snake.glfwKeypressCallback(key)
             }
         })
-
+        */
         // GL configuration comes AFTER we make the window our current context, otherwise errors
         GL.createCapabilities()
         glClearColor(0.0f,0.0f,0.0f,1.0f)
