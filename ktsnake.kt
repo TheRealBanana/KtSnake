@@ -1,5 +1,4 @@
 import org.lwjgl.glfw.GLFW.*
-import org.lwjgl.glfw.GLFWKeyCallback
 import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11.*
 import org.lwjgl.system.MemoryUtil.NULL
@@ -13,18 +12,10 @@ fun randgrid(end: Int) = Random().nextInt(end)
 data class ColorTuple(val r: Float, val g: Float, val b: Float)
 data class Grid(val row: Int, val col: Int)
 data class Point(val x: Int, val y: Int)
-data class Vertices(val bottom_right: Point, val side_size_px: Int) {
-    val br: Point
-    val tr: Point
-    val tl: Point
-    val bl: Point
-
-    init {
-        this.br = bottom_right
-        this.tr = Point(bottom_right.x, bottom_right.y - side_size_px)
-        this.tl = Point(bottom_right.x - side_size_px, bottom_right.y - side_size_px)
-        this.bl = Point(bottom_right.x - side_size_px, bottom_right.y)
-    }
+data class Vertices(val br: Point, private val side_size_px: Int) {
+    val tr: Point = Point(br.x, br.y - side_size_px)
+    val tl: Point = Point(br.x - side_size_px, br.y - side_size_px)
+    val bl: Point = Point(br.x - side_size_px, br.y)
 }
 
 
@@ -43,30 +34,18 @@ enum class Directions(val dir: String) {
     LEFT("left")
 }
 
-class GameGrid(snake: Snake, rows: Int, cols: Int, side_size_px: Int) {
-    val MAX_OBJS: Int = 10
-    private val snake: Snake
-    private val rows: Int
-    private val cols: Int
-    private val sidesizepx: Int
-    private val activeGridElements: MutableMap<Grid, GridElement>
+class GameGrid(private val snake: Snake, private val rows: Int, private val cols: Int, private val sidesizepx: Int) {
+    val maxobjectives: Int = 10
+    private val activeGridElements: MutableMap<Grid, GridElement> = mutableMapOf()
     val objectiveList: MutableList<Grid> = mutableListOf()
 
-    init {
-        this.snake = snake
-        this.rows = rows
-        this.cols = cols
-        this.sidesizepx = side_size_px
-        this.activeGridElements = mutableMapOf<Grid, GridElement>()
-    }
-
     fun addObjective() {
-        if (objectiveList.size == MAX_OBJS) {
+        if (objectiveList.size == maxobjectives) {
             deleteGridElement((objectiveList.elementAt(0)))
             objectiveList.removeAt(0)
         }
         //Create random new grid thats not already taken
-        var newobjgrid: Grid = Grid(randgrid(rows), randgrid(cols))
+        var newobjgrid = Grid(randgrid(rows), randgrid(cols))
         while (newobjgrid in objectiveList || newobjgrid in snake.snakegrids) {
             newobjgrid = Grid(randgrid(rows), randgrid(cols))
         }
@@ -74,22 +53,22 @@ class GameGrid(snake: Snake, rows: Int, cols: Int, side_size_px: Int) {
         createGridElement(GridElementTypes.OBJECTIVE, newobjgrid)
     }
 
-    fun createGridElement(element_type: GridElementTypes, grid_index: Grid): Boolean{
+    private fun createGridElement(element_type: GridElementTypes, grid_index: Grid): Boolean{
         if (activeGridElements.containsKey(grid_index)) {
             deleteGridElement(grid_index)
         }
         val xcoord: Int = sidesizepx * grid_index.row + sidesizepx
         val ycoord: Int = sidesizepx * grid_index.col + sidesizepx
-        val origin_coords = Point(xcoord, ycoord)
-        val new_grid_element = GridElement(element_type.color, origin_coords, sidesizepx)
-        activeGridElements[grid_index] =  new_grid_element
+        val origincoords = Point(xcoord, ycoord)
+        val newgridelement = GridElement(element_type.color, origincoords, sidesizepx)
+        activeGridElements[grid_index] =  newgridelement
         return true
     }
-    fun deleteGridElement(grid_index: Grid){
+    private fun deleteGridElement(grid_index: Grid){
         if (activeGridElements.containsKey(grid_index)) {
             activeGridElements.remove(grid_index)
         } else {
-            throw Exception("Tried to delete non-existent grid at index %s".format(grid_index.toString()))
+            throw Exception("Tried to delete non-existent grid at index $grid_index")
         }
     }
 
@@ -100,19 +79,15 @@ class GameGrid(snake: Snake, rows: Int, cols: Int, side_size_px: Int) {
         }
     }
 
-    fun clearGrid() {
-        activeGridElements.clear()
-    }
-
     fun moveSnake(): Boolean{
         val nextmove: Grid = snake.getMove()
 
         //Check if we hit the wall
-        if (!(nextmove.row >= 0 && nextmove.row < rows)){
+        if (nextmove.row !in 0..rows){
             snake.alive = false
             println("Hit a wall, we ded fam X(")
             return false
-        } else if (!(nextmove.col >= 0 && nextmove.col < cols)){
+        } else if (nextmove.col !in 0..cols){
             snake.alive = false
             println("Hit a wall, we ded fam X(")
             return false
@@ -146,27 +121,19 @@ class GameGrid(snake: Snake, rows: Int, cols: Int, side_size_px: Int) {
         return true
     }
 
-    fun GameOver() {
+    fun gameOver() {
         // We died, show score and wait for user to exit
         // Also color the snake head red so we know we ded
         createGridElement(GridElementTypes.DEAD_HEAD, snake.snakegrids[snake.snakegrids.size-1])
         redrawGrid()
-        println("Final Score: %d".format(snake.length-5)) //subtract initial snake size
+        println("Final Score: ${snake.length-5}") //subtract initial snake size
     }
 
 }
 
 class GridElement (type: ColorTuple, origin_coords: Point, size_px: Int) {
-    private val color: ColorTuple
-    private val origincoords: Point
-    private val sizepx: Int
+    private val color: ColorTuple = type
     private val vertices: Vertices = Vertices(origin_coords, size_px)
-
-    init {
-        this.color = type
-        this.origincoords = origin_coords
-        this.sizepx = size_px
-    }
 
     fun draw() {
         // Figure out our vertices
@@ -182,30 +149,25 @@ class GridElement (type: ColorTuple, origin_coords: Point, size_px: Int) {
 
 class Snake(start_grid: Grid, start_direction: Directions) {
     var alive: Boolean = true
-    var currentgrid: Grid
-    private var direction: Directions
+    var currentgrid: Grid = start_grid
+    private var direction: Directions = start_direction
     var length: Int = 5 //initial snake size
     val snakegrids: MutableList<Grid> = mutableListOf()
 
     init {
-        this.currentgrid = start_grid
         this.snakegrids.add(start_grid)
-        this.direction = start_direction
     }
 
     fun getMove(dir: Directions = this.direction): Grid {
-        var nextgrid: Grid
-
-        when (dir.dir) {
-            "down" -> nextgrid = Grid(currentgrid.row, currentgrid.col+1)
-            "up" -> nextgrid = Grid(currentgrid.row, currentgrid.col-1)
-            "right" -> nextgrid = Grid(currentgrid.row+1, currentgrid.col)
-            else -> nextgrid = Grid(currentgrid.row-1, currentgrid.col) // Using else instead of "left" cause kotlin doesn't like the ambiguity.
+        return when (dir.dir) {
+            "down" ->  Grid(currentgrid.row, currentgrid.col+1)
+            "up" -> Grid(currentgrid.row, currentgrid.col-1)
+            "right" -> Grid(currentgrid.row+1, currentgrid.col)
+            else -> Grid(currentgrid.row-1, currentgrid.col) // Using else instead of "left" cause kotlin doesn't like the ambiguity.
         }
-        return nextgrid
     }
 
-    fun changeDirection(newdir: Directions) {
+    private fun changeDirection(newdir: Directions) {
         if (alive) {
             if (snakegrids.size > 1) {
                 if (getMove(newdir) != snakegrids[snakegrids.size-2] ) {
@@ -216,6 +178,10 @@ class Snake(start_grid: Grid, start_direction: Directions) {
             }
         }
     }
+
+    //I know scancode and mods are unused, need them anyway
+    //In python we could use underscores in function declaration. Kotlin only allows that in lambda expressions.
+    @Suppress("UNUSED_PARAMETER")
     fun glfwKeypressCallback(window: Long, key: Int, scancode: Int, action: Int, mods: Int) {
         if (action == GLFW_PRESS) {
             when (key) {
@@ -223,6 +189,7 @@ class Snake(start_grid: Grid, start_direction: Directions) {
                 GLFW_KEY_DOWN -> changeDirection(Directions.DOWN)
                 GLFW_KEY_LEFT -> changeDirection(Directions.LEFT)
                 GLFW_KEY_RIGHT -> changeDirection(Directions.RIGHT)
+                GLFW_KEY_ESCAPE -> glfwSetWindowShouldClose(window, true)
             }
         }
     }
@@ -231,11 +198,11 @@ class Snake(start_grid: Grid, start_direction: Directions) {
 object SnakeGame {
     private const val WINDOW_SIZE_WIDTH: Int = 500
     private const val WINDOW_SIZE_HEIGHT: Int = 500
-    private const val side_size_px: Int = 25
+    private const val side_size_px: Int = 15
     private var tickno: Int = 0
     private val rows: Int = floor(WINDOW_SIZE_WIDTH.toFloat()/side_size_px.toFloat()).toInt()
-    private val cols = floor(WINDOW_SIZE_HEIGHT.toFloat()/side_size_px.toFloat()).toInt()
-    private val snake: Snake = Snake(Grid(1,1), Directions.RIGHT)
+    private val cols: Int = floor(WINDOW_SIZE_HEIGHT.toFloat()/side_size_px.toFloat()).toInt()
+    private val snake: Snake = Snake(Grid(0,0), Directions.RIGHT)
     private val gameGrid: GameGrid = GameGrid(snake, rows, cols, side_size_px)
     private var window: Long = NULL
 
@@ -244,7 +211,7 @@ object SnakeGame {
         init(WINDOW_SIZE_WIDTH, WINDOW_SIZE_HEIGHT)
 
         //Add half the number of objectives at the start
-        while (gameGrid.objectiveList.size < gameGrid.MAX_OBJS/2) {
+        while (gameGrid.objectiveList.size < gameGrid.maxobjectives/2) {
             gameGrid.addObjective()
         }
 
@@ -254,7 +221,7 @@ object SnakeGame {
 
             glfwPollEvents() // Get keypresses
 
-            if (tickno % 10 == 0){ // Add new objective every 10 ticks
+            if (tickno % 30 == 0){ // Add new objective every 10 ticks
                 gameGrid.addObjective()
             }
 
@@ -262,15 +229,19 @@ object SnakeGame {
             gameGrid.redrawGrid()
             glfwSwapBuffers(window)
             //if we are dead fall right through, no sleep
-            if (snake.alive) { Thread.sleep(200L) }
+            if (snake.alive) { Thread.sleep(100L) }
         }
         // Game over man! GAME OVER!
-        gameGrid.GameOver()
+        gameGrid.gameOver()
         // Swap buffers one last time to update the grid with our dead snake
         glfwSwapBuffers(window)
         while (!glfwWindowShouldClose(window)){
             glfwPollEvents()
+            Thread.sleep(50) //Dont let this while drive the CPU usage up too much
         }
+
+        glfwDestroyWindow(window)
+        glfwTerminate()
     }
 
     private fun init(windowSizeW: Int, windowSizeH: Int) {
@@ -285,31 +256,8 @@ object SnakeGame {
             throw Exception("Failed to initialize window.")
         }
         glfwMakeContextCurrent(window)
-        //Key callbacks
-        /* So when I tried this first time around I got a lot of errors about expecting a function of
-        a specific type GLFWKeyCallback. Coming from python, I had no concept of function types so I
-        just copied the example code and it worked.
-
-        My error was passing the callback function with a dot operator instead of the double colon reference operator.
-        The function type is basically the function signature without the function name.
-        (arg1type, arg2type, ..) -> functionReturnType
-        That above would be considered by kotlin (without the ellipses ofc) to be a valid type for a function argument.
-        */
         glfwSetKeyCallback(window, snake::glfwKeypressCallback)
-        /* The below is how the glfw docs said to do key callbacks but I like my way better.
-        I just really dont like lambda functions, I never needed them up to now.
 
-        keyCallback = glfwSetKeyCallback(window, object : GLFWKeyCallback() {
-            override fun invoke(window: kotlin.Long,
-                                key: kotlin.Int,
-                                scancode: kotlin.Int,
-                                action: kotlin.Int,
-                                mods: kotlin.Int) {
-
-                snake.glfwKeypressCallback(key)
-            }
-        })
-        */
         // GL configuration comes AFTER we make the window our current context, otherwise errors
         GL.createCapabilities()
         glClearColor(0.0f,0.0f,0.0f,1.0f)
